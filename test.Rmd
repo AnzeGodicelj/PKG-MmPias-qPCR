@@ -23,7 +23,7 @@ neat_2 <- paste(neat,rep(c("JOE","FAM"), times = 384), sep = "_")
 
 ```
 
-Next, we need to sort the samples according to the ordered vector and name the samples.
+Next, we need to sort the samples according to the ordered vector. Once we pick the complete cases, we can also name the samples.
 ```{r}
 #Loading the data and choosing the relevant columns. (We could just split this matrix into 2 - FAM and JOE. This would bypass the Well_dye merging.)
 pre_raw <- as.data.frame(read.csv("~/Dropbox/PIAS3 immunology/2018-03-23 PKG-mPIAS3-qPCR.csv"))[1:192,]
