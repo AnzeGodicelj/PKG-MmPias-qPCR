@@ -5,17 +5,9 @@ date: "28/03/2018"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
+First, lets set up a neat 384-well (24X16) plate layout and obtain a vector ordered by columns. 
 
-## R Markdown
-
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
+```{r}
 #Setting up the order of wells
 library(reshape2)
 
@@ -28,14 +20,200 @@ pre_neat <- paste0(melt(samples)$Var1, melt(samples)$Var2)
 neat <- rep(pre_neat, each = 2)
 neat_2 <- paste(neat,rep(c("JOE","FAM"), times = 384), sep = "_")
 
+
 ```
 
-## Including Plots
+Next, we need to sort the samples according to the ordered vector and name the samples.
+```{r}
+#Loading the data and choosing the relevant columns. (We could just split this matrix into 2 - FAM and JOE. This would bypass the Well_dye merging.)
+pre_raw <- as.data.frame(read.csv("~/Dropbox/PIAS3 immunology/2018-03-23 PKG-mPIAS3-qPCR.csv"))[1:192,]
+raw <- cbind(as.vector(pre_raw$Well.Position), as.vector(pre_raw$Target.Name), as.vector(pre_raw$CT))
+# Because we have duplicates of wells (2 different dyes per well) we need to add the dye classifier to be able to sort the wells.
+raw <- cbind(raw,rep(NA, times = nrow(raw)))
+raw[raw[,2]%in%"MmACTB",4] <- "JOE"
+raw[raw[,2]%in%"mPIAS3",4] <- "FAM"
+raw[raw[,2]%in%"18S",4]  <- "JOE"
+raw[raw[,2]%in%"hPIAS3",4]  <- "FAM"
+raw <- cbind(raw, paste(raw[,1], raw[,4], sep = "_"))
 
-You can also embed plots, for example:
+#Sort the table based on the ordered vector.
+ordered <- raw[match(neat_2,raw[,5]),]
+#Only pick complete cases and remove the last column, because it adds nothing.
+pre_clean <- ordered[complete.cases(ordered),-5]
+colnames(pre_clean) <- c("Well", "Target", "CT", "Dye")
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+#Naming the samples 
+sample_ID <- rep(c(rep("EMT6_WT", times = 8),
+                   rep("EMT6_MmPias3_low", times = 8),
+                   rep("EMT6_MmPias3_high", times = 8),
+                   rep("EMT6_WT_noRT", times = 8),
+                   rep("EMT6_MmPias3_low_noRT", times = 8),
+                   rep("EMT6_MmPias3_high_noRT", times = 8)), times = 2)
+
+clean <- cbind(sample_ID, pre_clean)
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+We end up with a table that contains both PIAS3 Ct values and housekeeping (ACTB/18S) Ct values. It will be easier if we sepparate these into two different tables.
+```{r}
+#Extracting MmPias3/HsPIAS3 Ct values
+target <- clean[grep("FAM", clean[,5]),]
+
+#Extracting MmACTB/18S Ct values
+control <- clean[grep("JOE", clean[,5]),]
+```
+
+Now we are ready to tackle the expression of MmPias3. This will be calculated in two steps:
+  (a) Calculate the difference in MmPias3 Ct values between experimental samples and the average of control (WT) samples. This will give Delta Ct of MmPias3.
+  (b) Calculate the difference in MmACTB Ct values between experimental samples and the average of control (WT) samples. This will give Delta Ct of MmACTB.
+  
+First, we need to calculate the difference in expression of MmPias3.
+```{r}
+#Pick only first column (others samples will be normalised on a different gene).
+MmPIAS3_target <- target[grep("1",target[grep("mPIAS3", target[,3]),2]),]
+#E1 is clearly an outlier, so we can remove it.
+MmPIAS3_target <- MmPIAS3_target[-3,]
+
+#Create a new matrix. We will need space for Average Control MmPIAS3 Ct value and MmPias3_delta(Ct) value
+delta_MmPias3 <- matrix(ncol = ncol(MmPIAS3_target)+2, nrow = nrow(MmPIAS3_target))
+colnames(delta_MmPias3) <- c(colnames(MmPIAS3_target), "Average_control_MmPIAS3_Ct", "MmPias3_delta(Ct)")
+delta_MmPias3[,1:5] <- MmPIAS3_target
+
+#Calculating the average control MmPias3 Ct value
+delta_MmPias3[,6] <- rep(mean(as.numeric(delta_MmPias3[grep("WT", delta_MmPias3[,1]),4])), times = nrow(delta_MmPias3))
+#Calculating the delta MmPias3 Ct values
+delta_MmPias3[,7] <- as.numeric(delta_MmPias3[,4]) - as.numeric(delta_MmPias3[,6])
+```
+
+Now we do the similar analysis for MmACTB.
+```{r}
+#Pick only first column.
+MmACTB_control <- control[grep("1",control[grep("MmACTB",control[,3]),2]),]
+
+#E1 is clearly an outlier, so we can remove it.
+MmACTB_control <- MmACTB_control[-3,]
+
+#Create a new matrix. We will need space for Average Control MmACTB Ct value and MmACTB_delta(Ct) value
+delta_MmACTB <- matrix(ncol = ncol(MmACTB_control)+2, nrow = nrow(MmACTB_control))
+colnames(delta_MmACTB) <- c(colnames(MmACTB_control), "Average_control_MmACTB_Ct", "MmACTB_delta(Ct)")
+delta_MmACTB[,1:5] <- MmACTB_control
+
+#Calculating the average control MmACTB Ct value
+delta_MmACTB[,6] <- rep(mean(as.numeric(delta_MmACTB[grep("WT", delta_MmACTB[,1]),4])), times = nrow(delta_MmACTB))
+#Calculating the delta MmACTB Ct values
+delta_MmACTB[,7] <- as.numeric(delta_MmACTB[,4]) - as.numeric(delta_MmACTB[,6])
+```
+Now we can calculte the difference between MmPias3_delta(Ct) and MmACTB_delta(Ct).
+```{r}
+Delta_delta_MmPias3 <- matrix(ncol = 5, nrow = nrow(delta_MmACTB))
+colnames(Delta_delta_MmPias3) <- c("sample_ID","MmPias3_delta(Ct)", "MmACTB_delta(Ct)", "MmPias3_delta(Ct) - MmACTB_delta(Ct)", "log(2)FC" )
+
+Delta_delta_MmPias3[,1] <- delta_MmACTB[,1]
+Delta_delta_MmPias3[,2] <- delta_MmPias3[,7]
+Delta_delta_MmPias3[,3] <- delta_MmACTB[,7]
+
+#Calculating delta(delta(Ct))
+Delta_delta_MmPias3[,4] <- as.numeric(Delta_delta_MmPias3[,2]) - as.numeric(Delta_delta_MmPias3[,3])
+#Calculating Log(2)FC
+Delta_delta_MmPias3[,5] <- 2^(-(as.numeric(Delta_delta_MmPias3[,4])))
+```
+
+Lets plot the results in a boxplot.
+```{r}
+input <- matrix(ncol = 3, nrow = 4)
+colnames(input) <- unique(Delta_delta_MmPias3[,1])
+
+input[,1] <- as.numeric(c(Delta_delta_MmPias3[grep("WT", Delta_delta_MmPias3[,1]),5], NA)) # Can I solve this more elegantly??
+input[,2] <- as.numeric(Delta_delta_MmPias3[grep("low", Delta_delta_MmPias3[,1]),5])
+input[,3] <- as.numeric(Delta_delta_MmPias3[grep("high", Delta_delta_MmPias3[,1]),5])
+
+colnames(input) <- unique(Delta_delta_MmPias3[,1])
+
+boxplot(as.matrix(input), na.rm=TRUE, main = "MmPias3 expression")
+stripchart(input[,1], at = 1, vertical = TRUE, method = "jitter", add = TRUE, pch = 20)
+stripchart(input[,2], at = 2, vertical = TRUE, method = "jitter", add = TRUE, pch = 20)
+stripchart(input[,3], at = 3, vertical = TRUE, method = "jitter", add = TRUE, pch = 20)
+
+t.test(input[,1], input[,2], na.rm = TRUE)
+t.test(input[,1], input[,3], na.rm = TRUE)
+t.test(input[,2], input[,3], na.rm = TRUE)
+
+```
+
+
+This analysis can be repeated, but instead of using MmACTB for normalisation, we can use 18S rRNA.
+
+Let's start with calculating delta Ct for MmPIAS3.
+```{r}
+#Pick only third column (others samples will be normalised on a different gene).
+MmPIAS3_target <- target[grep("3",target[grep("mPIAS3", target[,3]),2]),]
+
+#D3 is clearly an outlier in 18S expression, so we can remove it.
+MmPIAS3_target <- MmPIAS3_target[-2,]
+
+
+#Create a new matrix. We will need space for Average Control MmPIAS3 Ct value and MmPias3_delta(Ct) value
+delta_MmPias3 <- matrix(ncol = ncol(MmPIAS3_target)+2, nrow = nrow(MmPIAS3_target))
+colnames(delta_MmPias3) <- c(colnames(MmPIAS3_target), "Average_control_MmPIAS3_Ct", "MmPias3_delta(Ct)")
+delta_MmPias3[,1:5] <- MmPIAS3_target
+
+#Calculating the average control MmPias3 Ct value
+delta_MmPias3[,6] <- rep(mean(as.numeric(delta_MmPias3[grep("WT", delta_MmPias3[,1]),4])), times = nrow(delta_MmPias3))
+#Calculating the delta MmPias3 Ct values
+delta_MmPias3[,7] <- as.numeric(delta_MmPias3[,4]) - as.numeric(delta_MmPias3[,6])
+```
+
+Now we calculate delta Ct for 18S rRNA.
+```{r}
+#Pick only third column.
+rRNA_control <- control[grep("3",control[,2]),]
+
+#D3 is clearly an outlier in 18S expression, so we can remove it.
+rRNA_control <- rRNA_control[-2,]
+
+#Create a new matrix. We will need space for Average Control rRNA Ct value and rRNA_delta(Ct) value
+delta_rRNA <- matrix(ncol = ncol(rRNA_control)+2, nrow = nrow(rRNA_control))
+colnames(delta_rRNA) <- c(colnames(rRNA_control), "Average_control_rRNA_Ct", "rRNA_delta(Ct)")
+delta_rRNA[,1:5] <- rRNA_control
+
+#Calculating the average control rRNA Ct value
+delta_rRNA[,6] <- rep(mean(as.numeric(delta_rRNA[grep("WT", delta_rRNA[,1]),4])), times = nrow(delta_rRNA))
+#Calculating the delta rRNA Ct values
+delta_rRNA[,7] <- as.numeric(delta_rRNA[,4]) - as.numeric(delta_rRNA[,6])
+```
+
+Finally, we can calculate the difference between MmPias3_delta(Ct) and rRNA_delta(Ct)
+
+```{r}
+Delta_delta_MmPias3 <- matrix(ncol = 5, nrow = nrow(delta_rRNA))
+colnames(Delta_delta_MmPias3) <- c("sample_ID","MmPias3_delta(Ct)", "rRNA_delta(Ct)", "MmPias3_delta(Ct) - rRNA_delta(Ct)", "log(2)FC" )
+
+Delta_delta_MmPias3[,1] <- delta_rRNA[,1]
+Delta_delta_MmPias3[,2] <- delta_MmPias3[,7]
+Delta_delta_MmPias3[,3] <- delta_rRNA[,7]
+
+#Calculating delta(delta(Ct))
+Delta_delta_MmPias3[,4] <- as.numeric(Delta_delta_MmPias3[,2]) - as.numeric(Delta_delta_MmPias3[,3])
+#Calculating Log(2)FC
+Delta_delta_MmPias3[,5] <- 2^(-(as.numeric(Delta_delta_MmPias3[,4])))
+```
+To finish, we can plot the data with a boxplot.
+```{r}
+input <- matrix(ncol = 3, nrow = 4)
+colnames(input) <- unique(Delta_delta_MmPias3[,1])
+
+input[,1] <- as.numeric(c(Delta_delta_MmPias3[grep("WT", Delta_delta_MmPias3[,1]),5], NA)) # Can I solve this more elegantly??
+input[,2] <- as.numeric(Delta_delta_MmPias3[grep("low", Delta_delta_MmPias3[,1]),5])
+input[,3] <- as.numeric(Delta_delta_MmPias3[grep("high", Delta_delta_MmPias3[,1]),5])
+
+colnames(input) <- unique(Delta_delta_MmPias3[,1])
+
+boxplot(as.matrix(input), na.rm=TRUE, main = "MmPias3 expression")
+stripchart(input[,1], at = 1, vertical = TRUE, method = "jitter", add = TRUE, pch = 20)
+stripchart(input[,2], at = 2, vertical = TRUE, method = "jitter", add = TRUE, pch = 20)
+stripchart(input[,3], at = 3, vertical = TRUE, method = "jitter", add = TRUE, pch = 20)
+
+t.test(input[,1], input[,2], na.rm = TRUE)
+t.test(input[,1], input[,3], na.rm = TRUE)
+t.test(input[,2], input[,3], na.rm = TRUE)
+```
+
