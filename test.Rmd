@@ -5,7 +5,7 @@ date: "28/03/2018"
 output: html_document
 ---
 
-First, lets set up a neat 384-well (24X16) plate layout and obtain a vector ordered by columns. 
+First, lets set up a neat 384-well (24X16) plate layout and obtain a vector ordered by columns. We can change that if we run 96-well plate.
 
 ```{r}
 #Setting up the order of wells
