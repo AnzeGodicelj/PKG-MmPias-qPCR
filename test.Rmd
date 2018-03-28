@@ -149,10 +149,26 @@ input[,3] <- as.numeric(Delta_delta_MmPias3[grep("high", Delta_delta_MmPias3[,1]
 
 colnames(input) <- unique(Delta_delta_MmPias3[,1])
 
-boxplot(as.matrix(input), na.rm=TRUE, main = "MmPias3 expression")
+png(filename = "~/Dropbox/PKG_mPIAS3_qPCR/MmPias3_MmACTB.jpg", width = 2480/2, height = 3508/3, units = "px", pointsize = 14, res = 300)
+xx <- boxplot(as.matrix(input), na.rm=TRUE, main = "MmPias3 expression", xaxt = 'n', yaxt = 'n')
+mtext("Normalised on ACTB", line = 0.5, cex=0.7)
 stripchart(input[,1], at = 1, vertical = TRUE, method = "jitter", add = TRUE, pch = 20)
 stripchart(input[,2], at = 2, vertical = TRUE, method = "jitter", add = TRUE, pch = 20)
 stripchart(input[,3], at = 3, vertical = TRUE, method = "jitter", add = TRUE, pch = 20)
+
+# x axis ticks and lables
+axis(1, at = 1:3, labels = FALSE)
+text(x = c(1,2,3), y = c(-17), labels = c("EMT6 WT", "EM6 MmPias3\n Low", "EM6 MmPias3\n High"), xpd = T, cex = 0.8, srt = 45)
+
+# y axis ticks and labels
+axis(2, at = seq(0, 50, by = 10), labels = FALSE)
+text(x = 0, y = seq(0, 50, by = 10), labels = seq(0, 50, by = 10), xpd = T, cex = 0.8)
+
+# y axis title
+mtext("Expression", side = 2, line = 2.5)
+#text(x = -0.5, y = 25, labels = "Expression", srt = 90, xpd = TRUE)
+
+dev.off
 
 t.test(input[,1], input[,2], na.rm = TRUE)
 t.test(input[,1], input[,3], na.rm = TRUE)
@@ -228,10 +244,26 @@ input[,3] <- as.numeric(Delta_delta_MmPias3[grep("high", Delta_delta_MmPias3[,1]
 
 colnames(input) <- unique(Delta_delta_MmPias3[,1])
 
-boxplot(as.matrix(input), na.rm=TRUE, main = "MmPias3 expression")
+png(filename = "~/Dropbox/PKG_mPIAS3_qPCR/MmPias3_18S.jpg", width = 2480/2, height = 3508/3, units = "px", pointsize = 14, res = 300)
+xx <- boxplot(as.matrix(input), na.rm=TRUE, main = "MmPias3 expression", xaxt = 'n', yaxt = 'n', ylim = c(0,20))
+mtext("Normalised on 18S rRNA", line = 0.5, cex=0.7)
 stripchart(input[,1], at = 1, vertical = TRUE, method = "jitter", add = TRUE, pch = 20)
 stripchart(input[,2], at = 2, vertical = TRUE, method = "jitter", add = TRUE, pch = 20)
 stripchart(input[,3], at = 3, vertical = TRUE, method = "jitter", add = TRUE, pch = 20)
+
+# x axis ticks and lables
+axis(1, at = 1:3, labels = FALSE)
+text(x = c(1,2,3), y = c(-7), labels = c("EMT6 WT", "EM6 MmPias3\n Low", "EM6 MmPias3\n High"), xpd = T, cex = 0.8, srt = 45)
+
+# y axis ticks and labels
+axis(2, at = seq(0, 20, by = 5), labels = FALSE)
+text(x = 0, y = seq(0, 20, by = 5), labels = seq(0, 20, by = 5), xpd = T, cex = 0.8)
+
+# y axis title
+mtext("Expression", side = 2, line = 2.5)
+#text(x = -0.5, y = 25, labels = "Expression", srt = 90, xpd = TRUE)
+
+dev.off
 
 t.test(input[,1], input[,2], na.rm = TRUE)
 t.test(input[,1], input[,3], na.rm = TRUE)
